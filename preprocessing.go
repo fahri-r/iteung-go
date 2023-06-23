@@ -9,6 +9,8 @@ import (
     "strings"
 	"github.com/RadhiFadlillah/go-sastrawi"
     "github.com/go-gota/gota/dataframe"
+    "fmt"
+    "flag"
 )
 
 var punct_re_escape *regexp.Regexp
@@ -53,11 +55,15 @@ func init() {
 }
 
 func main() {
+    input := flag.String("i", "dataset/qa.csv", "input file directory")
+    output := flag.String("o", "dataset/clean_qa.txt", "output file directory")
+    flag.Parse()
     
     var questionLength = make(map[int]int)
     var answerLength = make(map[int]int)
+    
     // open file
-    f, err := os.Open("./dataset/qa.csv")
+    f, err := os.Open(*input)
     if err != nil {
         log.Fatal(err)
     }
@@ -128,13 +134,13 @@ func main() {
     )
 
  
-    f, err = os.Open("./dataset/qa.csv")
+    f, err = os.Open(*input)
     reader := csv.NewReader(f)
 	reader.FieldsPerRecord = -1
     reader.Comma = '|'
     records, _ := reader.ReadAll()
 
-    f, err = os.Create("./dataset/clean_qa.txt")
+    f, err = os.Create(*output)
 
     if err != nil {
         log.Fatal(err)
@@ -161,7 +167,7 @@ func main() {
         answer = strings.Replace(answer, "iteung", "aku", -1)
         answer = strings.Replace(answer, "\n", " ", -1)
         if len(strings.Split(question, " ")) > 0 && len(strings.Split(question, " ")) < 13 && len(strings.Split(answer, " ")) < 29{
-            _, err := f.WriteString("{"+ strings.TrimSpace(question) +"}|<START> {"+ answer +"} <END>\n")
+            _, err := f.WriteString(fmt.Sprintf("%s\n%s\n\n", strings.TrimSpace(question), answer))
 
             if err != nil {
                 log.Fatal(err)
