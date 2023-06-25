@@ -11,66 +11,78 @@ import (
 	"log"
 	"os"
 
+	"strings"
+
 	"github.com/kelseyhightower/envconfig"
 	"github.com/owulveryck/lstm"
 	"github.com/owulveryck/lstm/datasetter/char"
 	G "gorgonia.org/gorgonia"
+
+	."github.com/fahri-r/iteung-go/vocab"
 )
 
 type configuration struct {
 	Dump string `envconfig:"dump" default:"checkpoint.bin"`
 }
 
-func newVocabulary(filename string) (vocabulary, error) {
-	vocab := make(map[rune]struct{}, 0)
+func newVocabulary(filename string) (*Vocabulary[string, int], error) {
+
+	v := NewVocabStructure[string, int]()
+
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+	    return v, err
 	}
 	defer f.Close()
+
 	r := bufio.NewReader(f)
-	for {
-		if c, _, err := r.ReadRune(); err != nil {
-			if err == io.EOF {
-				break
-			}
-			log.Fatal(err)
-		} else {
-			vocab[c] = struct{}{}
-		}
-	}
-	output := make([]rune, len(vocab))
+
+	end := false
+
+	// special workaround to add newline token
+	id := 0
 	i := 0
-	for rne := range vocab {
-		output[i] = rne
-		i++
+	v.Insert("\n", id)
+	i++
+	id++
+
+	// add only unique tokens to vocabulary
+	for i=i; !end; i++ {
+	    l, err := r.ReadString('\n')
+	    if err != nil {
+		end = true
+	    }
+
+	    if l == "\n" {
+		continue
+	    }
+
+	    l = strings.TrimRight(l, "\n")
+
+	    parts := strings.Fields(l)
+
+	    for ii, p := range parts {
+
+		_, exists := v.Get(p)
+		if !exists {
+		    v.Insert(p, id)
+		    fmt.Println("Adding", p, "to vocabulary")
+		    id++
+		}
+
+		if len(parts) != ii+1 {
+		    i++
+		}
+	    }
 	}
-	return output, nil
+
+	return v, nil
 
 }
-
-type vocabulary []rune
 
 type backup struct {
 	Model      lstm.Model
-	Vocabulary vocabulary
-}
-
-func (v vocabulary) runeToIdx(r rune) (int, error) {
-	for i := range v {
-		if v[i] == r {
-			return i, nil
-		}
-	}
-	return 0, fmt.Errorf("Rune %v is not part of the vocabulary", string(r))
-}
-
-func (v vocabulary) idxToRune(i int) (rune, error) {
-	var rn rune
-	if i >= len(v) {
-		return rn, fmt.Errorf("index invalid, no rune references")
-	}
-	return v[i], nil
+	Vocabulary InferenceVocabulary[string, int]
 }
 
 func main() {
@@ -83,36 +95,34 @@ func main() {
 
     filename := flag.String("i", "dataset/clean_qa.txt", "input file directory")
 	flag.Parse()
+
+	// Read the file
+	
 	vocab, err := newVocabulary(*filename)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// TRAINING ARGUMENTS
-	prompt := "Hello"
-	iter := 500
-
-	// check that all runes in prompt are part of the vocabulary
-	for _, r := range prompt {
-	    _, err := vocab.runeToIdx(r)
-
-	    if err != nil {
-		vocab = append(vocab, r)
-	    }
+	_, err = vocab.TokenToIdx("\n")
+	if err != nil {
+	    panic(err)
 	}
 
-	vocabSize := len(vocab)
+	fmt.Printf("Vocabulary: %v\n", vocab.Size())
+
+	// os.Exit(0)
+
+	// TRAINING ARGUMENTS
+	// prompt := "siang"
+	iter := 1
+
+	vocabSize := vocab.Size()
 	model := lstm.NewModel(vocabSize, vocabSize, 100)
 
 	learnrate := 1e-3
 	l2reg := 1e-6
 	clipVal := float64(5)
 	solver := G.NewRMSPropSolver(G.WithLearnRate(learnrate), G.WithL2Reg(l2reg), G.WithClip(clipVal))
-
-
-	fmt.Println("---Vocabulary---")
-	fmt.Println(string(vocab))
-	fmt.Println("----------------")
 
 	for i := 0; i < iter; i++ {
 		f, err := os.Open(*filename)
@@ -122,11 +132,17 @@ func main() {
 		max, _ := f.Seek(0, io.SeekEnd)
 		
 		f.Seek(0, io.SeekStart)
-		tset := char.NewTrainingSet(f, vocab.runeToIdx, vocabSize, 30, 1)
+		
+		fmt.Println("Preparing dataset...")
+
+		tset := char.NewTrainingSet(f, vocab.TokenToIdx, vocabSize, 30, 1)
 		pause := make(chan struct{})
 		infoChan, errc := model.Train(context.TODO(), tset, solver, pause)
 		iter := 1
 		var minLoss float32
+		
+		fmt.Printf("Starting training (%v)...\n", iter)
+
 		for infos := range infoChan {
 			if iter%100 == 0 {
 				if minLoss == 0 {
@@ -135,9 +151,12 @@ func main() {
 				if infos.Cost < minLoss {
 					minLoss = infos.Cost
 					log.Println("Backup because loss is minimum")
+
+					infVocab := NewInferenceVocabFromExsting(*vocab)
+
 					bkp := backup{
 						Model:      *model,
-						Vocabulary: vocab,
+						Vocabulary: *infVocab,
 					}
 					f, err := os.OpenFile(config.Dump, os.O_RDWR|os.O_CREATE, 0755)
 					if err != nil {
@@ -151,37 +170,36 @@ func main() {
 					if err := f.Close(); err != nil {
 						log.Println(err)
 					}
-					// Do a backup
 				}
 				here, _ := f.Seek(0, io.SeekCurrent)
 				fmt.Printf("[%v/%v]%v\n", here, max, infos)
 			}
-			if iter%500 == 0 {
-				fmt.Println("\nGoing to predict")
-				pause <- struct{}{}
-				prediction := char.NewPrediction(prompt, vocab.runeToIdx, 100, vocabSize)
-				err := model.Predict(context.TODO(), prediction)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-
-				for _, output := range prediction.GetOutput() {
-					var idx int
-					for i, val := range output {
-						if val == 1 {
-							idx = i
-						}
-					}
-					rne, err := vocab.idxToRune(idx)
-					if err != nil {
-						log.Fatal(err)
-					}
-					fmt.Printf(string(rne))
-				}
-				fmt.Println("")
-				pause <- struct{}{}
-			}
+			// if iter%500 == 0 {
+			// 	fmt.Println("\nGoing to predict")
+			// 	pause <- struct{}{}
+			// 	prediction := char.NewPrediction(prompt, vocab.TokenToIdx, 100, vocabSize)
+			// 	err := model.Predict(context.TODO(), prediction)
+			// 	if err != nil {
+			// 		log.Println(err)
+			// 		continue
+			// 	}
+			//
+			// 	for _, output := range prediction.GetOutput() {
+			// 		var idx int
+			// 		for i, val := range output {
+			// 			if val == 1 {
+			// 				idx = i
+			// 			}
+			// 		}
+			// 		rne, err := vocab.IdxToToken(idx)
+			// 		if err != nil {
+			// 			log.Fatal(err)
+			// 		}
+			// 		fmt.Printf(string(rne))
+			// 	}
+			// 	fmt.Println("")
+			// 	pause <- struct{}{}
+			// }
 			iter++
 		}
 		err = <-errc
