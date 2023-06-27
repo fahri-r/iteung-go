@@ -94,7 +94,6 @@ func main() {
 	}
 
     filename := flag.String("i", "dataset/clean_qa.txt", "input file directory")
-	flag.Parse()
 
 	// Read the file
 	
@@ -172,7 +171,13 @@ func main() {
 					}
 				}
 				here, _ := f.Seek(0, io.SeekCurrent)
+				
 				fmt.Printf("[%v/%v]%v\n", here, max, infos)
+
+				if here == max {
+				    pause <- struct{}{}
+				}
+
 			}
 			// if iter%500 == 0 {
 			// 	fmt.Println("\nGoing to predict")
