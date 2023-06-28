@@ -1,10 +1,13 @@
 package lstm
 
 import (
+	"strings"
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/owulveryck/lstm/datasetter"
+	."github.com/owulveryck/lstm/datasetter/char"
 	G "gorgonia.org/gorgonia"
 	"gorgonia.org/tensor"
 )
@@ -59,8 +62,14 @@ func (m *Model) Predict(ctx context.Context, dataSet datasetter.Float32ReadWrite
 	//g := lstm.g.SubgraphRoots(dataSet.GetComputedVectors()...)
 	//machine := G.NewTapeMachine(g, G.ExecuteFwdOnly())
 	machine := G.NewTapeMachine(lstm.g)
-	for {
-		inputValue, err := dataSet.Read()
+
+	prompt := dataSet.(*Prediction).GetInput().String()
+    	parts := strings.Fields(prompt)
+
+	for _, r := range parts {
+		fmt.Println(r)
+
+		inputValue, err := dataSet.Read(r)
 		copy(input.Value().Data().([]float32), inputValue)
 		if err == io.EOF {
 			return nil

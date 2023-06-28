@@ -25,7 +25,7 @@ type FullTrainer interface {
 
 // Float32Reader a []float32
 type Float32Reader interface {
-	Read() ([]float32, error)
+	Read(tk string) ([]float32, error)
 }
 
 // Float32Writer writes an array of float 32

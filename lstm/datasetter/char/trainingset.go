@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-	// "unicode/utf8"
 	"strings"
+	// "errors"
 
 	"github.com/owulveryck/lstm/datasetter"
 	G "gorgonia.org/gorgonia"
@@ -15,9 +15,12 @@ import (
 
 // TrainingSet ...
 type TrainingSet struct {
-	rs        io.ReadSeeker
-	buf       *bufio.Reader
+	// rs        io.ReadSeeker
+	// buf       *bufio.Reader
+	bufOffset int
+	bufVocab  []int
 	runeToIdx func(r string) (int, error)
+	idxToRune func(r int) (string, error)
 	batchSize int
 	vocabSize int
 	step      int
@@ -33,17 +36,49 @@ type Section struct {
 }
 
 // NewTrainingSet from a ReadSeeker
-func NewTrainingSet(rs io.ReadSeeker, runeToIdx func(r string) (int, error), vocabSize, batchsize, step int) *TrainingSet {
+func NewTrainingSet(rs io.ReadSeeker, runeToIdx func(r string) (int, error), idxToRune func(r int) (string, error), vocabSize, batchsize, step int) *TrainingSet {
 	if batchsize < step {
 		log.Fatal("batchSize cannot be less than the step")
 	}
+
+	bufVocab := make([]int, 0) 
+	buf := bufio.NewReader(rs)
+	end := false
+
+	newLineVocab, _ := runeToIdx("\n")
+
+	for i:=0; !end; i++ {
+	    l, err := buf.ReadString('\n')
+	    if err != nil {
+		end = true
+	    }
+
+	    if l == "\n" {
+		bufVocab = append(bufVocab, newLineVocab)
+	    }
+
+	    l = strings.TrimRight(l, "\n")
+
+	    parts := strings.Fields(l)
+	    for _, p := range parts {
+	    
+		idx, err := runeToIdx(p)
+		if err != nil {
+		    return nil
+		}
+
+		bufVocab = append(bufVocab, idx)
+	    }
+	}
+
 	return &TrainingSet{
-		rs:        rs,
-		buf:       bufio.NewReader(rs),
+		bufOffset: 0,
+		bufVocab: bufVocab,
 		batchSize: batchsize,
 		vocabSize: vocabSize,
 		step:      step,
 		runeToIdx: runeToIdx,
+		idxToRune: idxToRune,
 	}
 }
 
@@ -98,63 +133,16 @@ func (t *TrainingSet) GetTrainer() (datasetter.Trainer, error) {
 		offset:    0,
 		sentence:  make([]int, t.batchSize),
 	}
-	// Peek as many bytes as needed for peeking as many runes needed
-	end := false
+	// Peek as many bytes as needed for peeking as many tokens needed
 
-	// divide the buffers in lines
-	for i := 0; !end; i++ {
-	    l, err := t.buf.ReadString('\n')
-	    if err != nil {
-		end = true
+	for i := 0; i < t.batchSize; i++ {
+	    if len(t.bufVocab) <= t.bufOffset + i {
+		return nil, io.EOF
 	    }
-
-	    // fmt.Println("Peeking", i, l)
-
-	    if i >= t.batchSize {
-
-		// fmt.Println("BREAKING")
-		break
-	    }
-
-	    if l == "\n" {
-		// fmt.Println("Found a newline", i)
-		
-		idx, err := t.runeToIdx("\n")
-		if err != nil {
-		    return nil, err
-		}
-		section.sentence[i] = idx
-
-	    } else {
-		
-		l = strings.TrimRight(l, "\n")
-
-		parts := strings.Fields(l)
-
-		// fmt.Println("Real size", len(parts) + i)
-
-		for ii, p := range parts {
-		    idx, err := t.runeToIdx(p)
-		    if err != nil {
-			return nil, err
-		    }
-		    
-		    
-		    if i >= t.batchSize {
-			// section.sentence = append(section.sentence, idx)
-		    } else {
-			section.sentence[i] = idx
-		    }
-
-
-		    if len(parts) != ii+1 {
-			i++
-		    }
-		}
-	    }
+	    section.sentence[i] = t.bufVocab[t.bufOffset + i]
 	}
 
-	section.sentence = append(section.sentence, 0)
+	t.bufOffset++
 
 	t.pass++
 	return section, nil

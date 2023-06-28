@@ -28,25 +28,13 @@ func NewPrediction(input string, runeToIdx func(r string) (int, error), sampleSi
 }
 
 // Float32Read ...
-func (p *Prediction) Read() ([]float32, error) {
-	rn, err := p.input.ReadString(' ')
+func (p *Prediction) Read(tk string) ([]float32, error) {
 
-	// fmt.Println(rn)
-	//
-	// fmt.Println("after")
-
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	if err == io.EOF && p.generated < p.sampleSize {
-		p.generated++
-		return p.output[len(p.output)-1], nil
-	}
 	if p.generated >= p.sampleSize {
 		return nil, io.EOF
 	}
 	backend := make([]float32, p.vocabSize)
-	idx, err := p.runeToIdx(rn)
+	idx, err := p.runeToIdx(tk)
 	if err != nil {
 		return nil, err
 	}
@@ -73,4 +61,9 @@ func (p *Prediction) Write(val []float32) error {
 // GetOutput ...
 func (p *Prediction) GetOutput() [][]float32 {
 	return p.output
+}
+
+// GetInput ...
+func (p *Prediction) GetInput() *bytes.Buffer {
+	return p.input
 }

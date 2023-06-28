@@ -94,6 +94,7 @@ func main() {
 	}
 
     filename := flag.String("i", "dataset/clean_qa.txt", "input file directory")
+	flag.Parse()
 
 	// Read the file
 	
@@ -112,8 +113,8 @@ func main() {
 	// os.Exit(0)
 
 	// TRAINING ARGUMENTS
-	// prompt := "siang"
-	iter := 1
+	prompt := "siang"
+	iter := 10
 
 	vocabSize := vocab.Size()
 	model := lstm.NewModel(vocabSize, vocabSize, 100)
@@ -134,13 +135,13 @@ func main() {
 		
 		fmt.Println("Preparing dataset...")
 
-		tset := char.NewTrainingSet(f, vocab.TokenToIdx, vocabSize, 30, 1)
+		tset := char.NewTrainingSet(f, vocab.TokenToIdx, vocab.IdxToToken, vocabSize, 30, 1)
 		pause := make(chan struct{})
 		infoChan, errc := model.Train(context.TODO(), tset, solver, pause)
 		iter := 1
 		var minLoss float32
 		
-		fmt.Printf("Starting training (%v)...\n", iter)
+		fmt.Printf("Starting training (%v)...\n", i)
 
 		for infos := range infoChan {
 			if iter%100 == 0 {
@@ -174,37 +175,37 @@ func main() {
 				
 				fmt.Printf("[%v/%v]%v\n", here, max, infos)
 
-				if here == max {
-				    pause <- struct{}{}
-				}
+				// if here >= max {
+				//     pause <- 1
+				// }
 
 			}
-			// if iter%500 == 0 {
-			// 	fmt.Println("\nGoing to predict")
-			// 	pause <- struct{}{}
-			// 	prediction := char.NewPrediction(prompt, vocab.TokenToIdx, 100, vocabSize)
-			// 	err := model.Predict(context.TODO(), prediction)
-			// 	if err != nil {
-			// 		log.Println(err)
-			// 		continue
-			// 	}
-			//
-			// 	for _, output := range prediction.GetOutput() {
-			// 		var idx int
-			// 		for i, val := range output {
-			// 			if val == 1 {
-			// 				idx = i
-			// 			}
-			// 		}
-			// 		rne, err := vocab.IdxToToken(idx)
-			// 		if err != nil {
-			// 			log.Fatal(err)
-			// 		}
-			// 		fmt.Printf(string(rne))
-			// 	}
-			// 	fmt.Println("")
-			// 	pause <- struct{}{}
-			// }
+			if iter%500 == 0 {
+				fmt.Println("\nGoing to predict")
+				pause <- struct{}{}
+				prediction := char.NewPrediction(prompt, vocab.TokenToIdx, 100, vocabSize)
+				err := model.Predict(context.TODO(), prediction)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+
+				for _, output := range prediction.GetOutput() {
+					var idx int
+					for i, val := range output {
+						if val == 1 {
+							idx = i
+						}
+					}
+					rne, err := vocab.IdxToToken(idx)
+					if err != nil {
+						log.Fatal(err)
+					}
+					fmt.Printf(rne)
+				}
+				fmt.Println("")
+				pause <- struct{}{}
+			}
 			iter++
 		}
 		err = <-errc
