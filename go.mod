@@ -2,9 +2,9 @@ module github.com/fahri-r/iteung-go
 
 go 1.20
 
-replace gorgonia.org/gorgonia => ./gorgonia
+replace gorgonia.org/gorgonia => ./lib/gorgonia
 
-replace github.com/owulveryck/lstm => ./lstm
+replace github.com/owulveryck/lstm => ./lib/lstm
 
 require (
 	github.com/RadhiFadlillah/go-sastrawi v0.0.0-20200621225627-3dd6e0e1ac00

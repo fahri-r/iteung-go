@@ -93,12 +93,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-    filename := flag.String("i", "dataset/clean_qa.txt", "input file directory")
+    filename := flag.String("i", "qa.txt", "input file directory")
 	flag.Parse()
 
 	// Read the file
 	
-	vocab, err := newVocabulary(*filename)
+	vocab, err := newVocabulary("dataset/output/" + *filename)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func main() {
 	solver := G.NewRMSPropSolver(G.WithLearnRate(learnrate), G.WithL2Reg(l2reg), G.WithClip(clipVal))
 
 	for i := 0; i < iter; i++ {
-		f, err := os.Open(*filename)
+		f, err := os.Open("dataset/output/" + *filename)
 		if err != nil {
 			log.Fatal(err)
 		}

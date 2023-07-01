@@ -11,6 +11,8 @@ import (
     "github.com/go-gota/gota/dataframe"
     "fmt"
     "flag"
+    "math/rand"
+    "math"
 )
 
 var punct_re_escape *regexp.Regexp
@@ -55,15 +57,17 @@ func init() {
 }
 
 func main() {
-    input := flag.String("i", "dataset/qa.csv", "input file directory")
-    output := flag.String("o", "dataset/clean_qa.txt", "output file directory")
+    input := flag.String("i", "qa.csv", "input file name")
+    output := flag.String("o", "qa.txt", "output file name")
     flag.Parse()
+    trainPercent := 80.0
+    // testPercent := 20
     
     var questionLength = make(map[int]int)
     var answerLength = make(map[int]int)
     
     // open file
-    f, err := os.Open(*input)
+    f, err := os.Open("dataset/" + *input)
     if err != nil {
         log.Fatal(err)
     }
@@ -75,6 +79,7 @@ func main() {
     csvReader := csv.NewReader(f)
 	csvReader.FieldsPerRecord = -1
     csvReader.Comma = '|'
+
     for {
         rec, err := csvReader.Read()
         if err == io.EOF {
@@ -134,29 +139,46 @@ func main() {
     )
 
  
-    f, err = os.Open(*input)
+    f, err = os.Open("dataset/" + *input)
     reader := csv.NewReader(f)
 	reader.FieldsPerRecord = -1
     reader.Comma = '|'
     records, _ := reader.ReadAll()
 
-    f, err = os.Create(*output)
+    recordsLength := len(records)
+    shuffledRecords := rand.Perm(recordsLength)
 
+    f, err = os.Create("dataset/output/" + *output)
     if err != nil {
         log.Fatal(err)
     }
-
     defer f.Close()
 
-    for i, record := range records {
+
+    trainFile, err := os.Create("dataset/output/train_" + *output)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer trainFile.Close()
+
+
+    testFile, err := os.Create("dataset/output/test_" + *output)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer testFile.Close()
+
+    for i, _ := range records {
+        index:=shuffledRecords[i]
+        
         if i == 0 {
             continue
         }
 
-        question := record[0]
+        question := records[index][0]
         answer := ""
-        if len(record) > 1 {
-            answer = record[1]
+        if len(records[index]) > 1 {
+            answer = records[index][1]
         }
 
         question = NormalizeSentence(question)
@@ -171,6 +193,21 @@ func main() {
 
             if err != nil {
                 log.Fatal(err)
+            }
+            
+            //if training index
+            if i < int(math.Round(float64(recordsLength)*trainPercent/100)) {
+                _, err := trainFile.WriteString(fmt.Sprintf("%s\n%s\n\n", strings.TrimSpace(question), answer))
+
+                if err != nil {
+                    log.Fatal(err)
+                }
+            } else {
+                _, err := testFile.WriteString(fmt.Sprintf("%s\n%s\n\n", strings.TrimSpace(question), answer))
+
+                if err != nil {
+                    log.Fatal(err)
+                }
             }
         }
     }

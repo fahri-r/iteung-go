@@ -1,2 +1,10 @@
-/dataset/clean_qa.txt
 checkpoint.bin
+
+/dataset/*
+!/dataset/qa.csv
+!/dataset/daftar-slang-bahasa-indonesia.csv
+!/dataset/shakespeare.txt
+!/dataset/output/
+
+/dataset/output/*
+!/dataset/output/.gitkeep
