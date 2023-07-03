@@ -3,7 +3,7 @@ package lstm
 import (
 	"strings"
 	"context"
-	"fmt"
+	// "fmt"
 	"io"
 
 	"github.com/owulveryck/lstm/datasetter"
@@ -67,7 +67,7 @@ func (m *Model) Predict(ctx context.Context, dataSet datasetter.Float32ReadWrite
     	parts := strings.Fields(prompt)
 
 	for _, r := range parts {
-		fmt.Println(r)
+		// fmt.Println(r)
 
 		inputValue, err := dataSet.Read(r)
 		copy(input.Value().Data().([]float32), inputValue)

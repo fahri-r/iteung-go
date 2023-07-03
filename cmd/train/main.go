@@ -93,7 +93,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-    filename := flag.String("i", "qa.txt", "input file directory")
+    filename := flag.String("i", "train_qa.txt", "input file name")
 	flag.Parse()
 
 	// Read the file
