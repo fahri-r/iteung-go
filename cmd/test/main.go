@@ -14,6 +14,9 @@ import (
 	"github.com/owulveryck/lstm/datasetter/char"
 
 	."github.com/fahri-r/iteung-go/vocab"
+
+	"github.com/adrg/strutil"
+	"github.com/adrg/strutil/metrics"
 )
 
 type configuration struct {
@@ -65,6 +68,7 @@ func main() {
 
 	
     questionAnswerRecords := strings.Split(string(data), "\n\n")
+	totalAccuracyInFloat := 0.0
 	for i := 0; i < len(questionAnswerRecords); i++ {
 		question := strings.Split(questionAnswerRecords[i], "\n")[0]
 
@@ -110,11 +114,20 @@ func main() {
 		}
 		fmt.Println(strings.TrimSpace(answer))
 
-		_, err := resultFile.WriteString(fmt.Sprintf("%s\n%s\n\n", strings.TrimSpace(question), strings.TrimSpace(answer)))
+		accuracy := strutil.Similarity(questionAnswerRecords[1], strings.TrimSpace(answer), metrics.NewJaroWinkler())
+		totalAccuracyInFloat += accuracy
+		
+		_, err := resultFile.WriteString(fmt.Sprintf("%s\n%s %f\n\n", strings.TrimSpace(question), strings.TrimSpace(answer), accuracy))
 
 		if err != nil {
 			log.Fatal(err)
 		}
 
 	}
+
+	_, err := resultFile.WriteString(fmt.Sprintf("Accuracy: %f%", (totalAccuracyInFloat / len(questionAnswerRecords)) * 100))
+
+		if err != nil {
+			log.Fatal(err)
+		}
 }
