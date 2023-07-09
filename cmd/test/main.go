@@ -71,6 +71,10 @@ func main() {
 	totalAccuracyInFloat := 0.0
 	for i := 0; i < len(questionAnswerRecords); i++ {
 		question := strings.Split(questionAnswerRecords[i], "\n")[0]
+		
+		if(strings.TrimSpace(question) == "") {
+			continue
+		}
 
 		fmt.Println("Prompt:", question)
 
@@ -125,7 +129,7 @@ func main() {
 
 	}
 
-	_, err := resultFile.WriteString(fmt.Sprintf("Accuracy: %f%", (totalAccuracyInFloat / len(questionAnswerRecords)) * 100))
+	_, err = resultFile.WriteString(fmt.Sprintf("Accuracy: %f%%", (totalAccuracyInFloat / float64(len(questionAnswerRecords))) * 100))
 
 		if err != nil {
 			log.Fatal(err)
