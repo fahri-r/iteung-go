@@ -11,6 +11,7 @@ import (
     "github.com/go-gota/gota/dataframe"
     "fmt"
     "flag"
+	"io/ioutil"
     "math/rand"
     "math"
 )
@@ -154,20 +155,6 @@ func main() {
     }
     defer f.Close()
 
-
-    trainFile, err := os.Create("dataset/output/train_" + *output)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer trainFile.Close()
-
-
-    testFile, err := os.Create("dataset/output/test_" + *output)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer testFile.Close()
-
     for i, _ := range records {
         index:=shuffledRecords[i]
         
@@ -188,22 +175,16 @@ func main() {
         answer = strings.ToLower(answer)
         answer = strings.Replace(answer, "iteung", "aku", -1)
         answer = strings.Replace(answer, "\n", " ", -1)
+        
         if len(strings.Split(question, " ")) > 0 && len(strings.Split(question, " ")) < 13 && len(strings.Split(answer, " ")) < 29{
-            _, err := f.WriteString(fmt.Sprintf("%s\n%s\n\n", strings.TrimSpace(question), answer))
-
-            if err != nil {
-                log.Fatal(err)
-            }
-            
-            //if training index
-            if i < int(math.Round(float64(recordsLength)*trainPercent/100)) {
-                _, err := trainFile.WriteString(fmt.Sprintf("%s\n%s\n\n", strings.TrimSpace(question), answer))
+            if (i == (recordsLength - 1)) {
+                _, err := f.WriteString(fmt.Sprintf("%s\n%s", strings.TrimSpace(question), answer))
 
                 if err != nil {
                     log.Fatal(err)
                 }
             } else {
-                _, err := testFile.WriteString(fmt.Sprintf("%s\n%s\n\n", strings.TrimSpace(question), answer))
+                _, err := f.WriteString(fmt.Sprintf("%s\n%s\n\n", strings.TrimSpace(question), answer))
 
                 if err != nil {
                     log.Fatal(err)
@@ -211,6 +192,66 @@ func main() {
             }
         }
     }
+	
+    qa, err := ioutil.ReadFile("dataset/output/qa.txt")
+    if err != nil {
+        return
+    }
+
+    trainFile, err := os.Create("dataset/output/train_" + *output)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer trainFile.Close()
+
+
+    testFile, err := os.Create("dataset/output/test_" + *output)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer testFile.Close()
+
+    questionAnswerRecords := strings.Split(string(qa), "\n\n")
+    trainDataLength := int(math.Round(float64(len(questionAnswerRecords))*trainPercent/100))
+    testDataLength := len(questionAnswerRecords) - trainDataLength
+
+    // Splitting Data
+    for i, qa := range questionAnswerRecords {
+            //if training index
+            if i < int(math.Round(float64(len(questionAnswerRecords))*trainPercent/100)) {
+                if (i == (trainDataLength - 1)) {
+                    _, err := trainFile.WriteString(fmt.Sprintf("%s", qa))
+
+                    if err != nil {
+                        log.Fatal(err)
+                    }
+                } else {
+                    _, err := trainFile.WriteString(fmt.Sprintf("%s\n\n", qa))
+
+                    if err != nil {
+                        log.Fatal(err)
+                    }
+                }
+            } else {
+                if (i == (len(questionAnswerRecords) - 1)) {
+                    _, err := testFile.WriteString(fmt.Sprintf("%s", qa))
+
+                    if err != nil {
+                        log.Fatal(err)
+                    }
+                } else {
+                    _, err := testFile.WriteString(fmt.Sprintf("%s\n\n", qa))
+
+                    if err != nil {
+                        log.Fatal(err)
+                    }
+                }
+            }
+    }
+
+    fmt.Println("Record Length: ", len(questionAnswerRecords))
+    fmt.Println("Train Data Length: ", trainDataLength)
+    fmt.Println("Test Data Length: ", testDataLength)
 }
 
 func NormalizeSentence(sentence string) string {
